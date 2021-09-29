@@ -185,8 +185,10 @@ Public Class EXO_FBEARING
     Private Function EventHandler_ItemPressed_After(ByRef pVal As ItemEvent) As Boolean
         Dim oForm As SAPbouiCOM.Form = objGlobal.SBOApp.Forms.Item(pVal.FormUID)
         Dim sPath As String = "" : Dim sRutaFich As String = "" : Dim sArchivo As String = ""
+        Dim sLinea As String = ""
         EventHandler_ItemPressed_After = False
-
+        Dim sSQL As String = "" : Dim OdtStock As System.Data.DataTable = Nothing
+        Dim sMensaje As String = ""
         Try
 
             Select Case pVal.ItemUID
@@ -208,6 +210,7 @@ Public Class EXO_FBEARING
                 Case "btnGen"
                     If oForm.DataSources.UserDataSources.Item("UDFICH").Value.ToString.Trim <> "" Then
 #Region "Generar fichero"
+                        sPath = oForm.DataSources.UserDataSources.Item("UDFICH").Value.ToString.Trim
 #Region "Se genera el fichero en el servidor"
                         sRutaFich = objGlobal.refDi.OGEN.pathGeneral & "\08.Historico\FBEARING\"
 
@@ -219,14 +222,46 @@ Public Class EXO_FBEARING
                         If IO.File.Exists(sRutaFich) = True Then
                             IO.File.Delete(sRutaFich)
                         End If
+                        FileOpen(1, sRutaFich, OpenMode.Output)
+                        If Not My.Computer.FileSystem.FileExists(sRutaFich) Then
+                            objGlobal.SBOApp.StatusBar.SetText("(EXO) - Compruebe la ruta seleccionada - " & sRutaFich & " - para la creación del fichero.", SAPbouiCOM.BoMessageTime.bmt_Short, SAPbouiCOM.BoStatusBarMessageType.smt_Error)
+                            Exit Function
+                        End If
+                        objGlobal.SBOApp.StatusBar.SetText("(EXO) - Generando fichero: " & sRutaFich, SAPbouiCOM.BoMessageTime.bmt_Short, SAPbouiCOM.BoStatusBarMessageType.smt_Warning)
+                        sLinea = "HURYZA" & ChrW(9) & "T933-GM4B-F6NF-PRSD" & ChrW(9) & "1" & ChrW(9) & "paula@rodamientos-huryza.com"
+                        PrintLine(1, sLinea)
+#Region "Detalle"
+                        sSQL = "SELECT I.""ItemName"", ifnull(I.""U_stec_marcas"",'') ""MARCA"",Cast(cast(S.""STOCK"" as integer) as varchar)""STOCK"",ifnull(B.""U_stec_tfe"",'') ""U_stec_tfe"" "
+                        sSQL &= " From OITM I "
+                        sSQL &= " INNER JOIN (SELECT ""ItemCode"", sum(""OnHand"") ""STOCK"" FROM OITW GROUP BY ""ItemCode"")S ON S.""ItemCode""= I.""ItemCode"" "
+                        sSQL &= " Left JOIN OITB B ON I.""ItmsGrpCod""=B.""ItmsGrpCod"" "
+                        sSQL &= " WHERE ""QryGroup2""='N' "
+                        OdtStock = objGlobal.refDi.SQL.sqlComoDataTable(sSQL)
+                        If OdtStock.Rows.Count > 0 Then
+                            Try
+                                For Each dr In OdtStock.Rows
+                                    sLinea = dr.Item("ItemName").ToString & ChrW(9) & dr.Item("MARCA").ToString & ChrW(9) & dr.Item("STOCK").ToString
+                                    sLinea &= ChrW(9) & dr.Item("ItemName").ToString & ChrW(9) & dr.Item("U_stec_tfe").ToString
+                                    PrintLine(1, sLinea)
+                                Next
+                                OdtStock = Nothing
+                            Catch ex As Exception
 
+                            End Try
+                        Else
+                            sMensaje = "(EXO) - No existen datos para insertar en el fichero."
+                            objGlobal.SBOApp.StatusBar.SetText("(EXO) - " & sMensaje, SAPbouiCOM.BoMessageTime.bmt_Short, SAPbouiCOM.BoStatusBarMessageType.smt_Warning)
+                            objGlobal.SBOApp.MessageBox(sMensaje)
+                        End If
+#End Region
+                        FileClose(1)
 #End Region
 #Region "Se copia al directorio que se haya pedido"
-                        Copia_Seguridad(sRutaFich, sPath)
+                            Copia_Seguridad(sRutaFich, sPath)
 #End Region
 #End Region
-                    Else
-                        objGlobal.SBOApp.MessageBox("No ha indicado un directorio para guardar.")
+                        Else
+                            objGlobal.SBOApp.MessageBox("No ha indicado un directorio para guardar.")
                         objGlobal.SBOApp.StatusBar.SetText("(EXO) - No ha indicado un directorio para guardar.", SAPbouiCOM.BoMessageTime.bmt_Short, SAPbouiCOM.BoStatusBarMessageType.smt_Warning)
                     End If
 
